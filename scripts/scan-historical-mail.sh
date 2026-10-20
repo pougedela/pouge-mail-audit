@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 # Read-only retrospective scan. No message headers/bodies, filenames or subjects in CI logs.
 export LC_ALL=C
-limit="${SCAN_LIMIT:-100}"
-[[ "$limit" =~ ^[0-9]+$ ]] && (( limit >= 1 && limit <= 500 )) || { echo "SCAN_LIMIT must be 1..500"; exit 1; }
+limit="${SCAN_LIMIT:-10}"
+[[ "$limit" =~ ^[0-9]+$ ]] && (( limit >= 1 && limit <= 100 )) || { echo "SCAN_LIMIT must be 1..100"; exit 1; }
 command -v rspamc >/dev/null || { echo "rspamc missing"; exit 1; }
 systemctl is-active --quiet rspamd || { echo "Rspamd inactive"; exit 1; }
 total=0
@@ -18,7 +18,7 @@ for account in titi pouge; do
     bytes=$(stat -c %s -- "$file" 2>/dev/null || echo 0)
     (( bytes > 0 && bytes <= 5242880 )) || continue
     output=$(timeout 12 rspamc -h 127.0.0.1:11333 symbols < "$file" 2>/dev/null) || { ((failed+=1)); ((processed+=1)); ((processed>=limit)) && break; continue; }
-    score=$(printf '%s\n' "$output" | sed -nE 's/^Metric: .*; ([0-9]+([.][0-9]+)?) \/ .*/\1/p' | head -n1)
+    score=$(printf '%s\n' "$output" | sed -nE 's/^Metric:.*;[[:space:]]*(-?[0-9]+([.][0-9]+)?)[[:space:]]*\/.*$/\1/p' | head -n1)
     if [[ -n "$score" ]]; then
       if awk -v s="$score" 'BEGIN{exit !(s>=15)}'; then ((over15+=1))
       elif awk -v s="$score" 'BEGIN{exit !(s>=8)}'; then ((over8+=1))
@@ -29,6 +29,7 @@ for account in titi pouge; do
   done < <(find "$root/cur" "$root/new" -maxdepth 1 -type f -print0 2>/dev/null)
   echo "scanned=$processed score_ge_15=$over15 score_8_to_15=$over8 lower=$other parse_or_scan_failed=$failed"
   ((total+=processed))
+  if ((processed > 0 && failed == processed)); then echo "ERROR: No usable scores; do not move any mail."; exit 2; fi
 done
 echo "total_scanned=$total"
 echo "Read-only sampling finished. No message moved, deleted, or modified."
