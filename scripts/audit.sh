@@ -67,4 +67,16 @@ if [ -n "$LOG" ]; then
   grep -Eic 'to=<?titi@pouge\\.net>?' "$LOG" 2>/dev/null || true
 fi
 
+
+printf '\n## Rspamd troubleshooting (read-only)\n'
+if command -v rspamadm >/dev/null 2>&1; then
+  rspamadm configtest 2>&1 | tail -n 12 || true
+  echo 'Configured worker listeners (limited, no secrets):'
+  rspamadm configdump worker 2>/dev/null | grep -E 'worker|bind_socket|milter|self_scan|count' | head -n 55 || true
+fi
+systemctl is-active rspamd redis-server 2>/dev/null || true
+ss -H -ltn 2>/dev/null | awk '$4 ~ /:(11332|11333|11334)$/ {print "Listening on "$4}' || true
+echo 'Rspamd recent non-sensitive service statuses:'
+journalctl -u rspamd --no-pager -n 25 -o cat 2>/dev/null | grep -Ei 'error|warning|fail|cannot|bind|start|stop|worker|listen|crash' | tail -n 20 || true
+
 printf '\nEnd audit. No configuration changes performed.\n'
