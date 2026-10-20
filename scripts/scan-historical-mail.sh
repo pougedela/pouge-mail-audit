@@ -17,8 +17,8 @@ for account in titi pouge; do
     # Only check a sample. Skip large items to avoid excessive processing.
     bytes=$(stat -c %s -- "$file" 2>/dev/null || echo 0)
     (( bytes > 0 && bytes <= 5242880 )) || continue
-    output=$(timeout 12 rspamc -h 127.0.0.1:11333 symbols < "$file" 2>/dev/null) || { ((failed+=1)); ((processed+=1)); ((processed>=limit)) && break; continue; }
-    score=$(printf '%s\n' "$output" | sed -nE 's/^Metric:.*;[[:space:]]*(-?[0-9]+([.][0-9]+)?)[[:space:]]*\/.*$/\1/p' | head -n1)
+    output=$(timeout 12 rspamc -j -h 127.0.0.1:11333 symbols < "$file" 2>/dev/null) || { ((failed+=1)); ((processed+=1)); ((processed>=limit)) && break; continue; }
+    score=$(printf '%s\n' "$output" | python3 -c 'import json,sys; data=json.load(sys.stdin); score=data.get("score"); print(score if isinstance(score,(int,float)) else "")' 2>/dev/null || true)
     if [[ -n "$score" ]]; then
       if awk -v s="$score" 'BEGIN{exit !(s>=15)}'; then ((over15+=1))
       elif awk -v s="$score" 'BEGIN{exit !(s>=8)}'; then ((over8+=1))
