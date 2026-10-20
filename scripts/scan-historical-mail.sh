@@ -18,7 +18,7 @@ for account in titi pouge; do
     bytes=$(stat -c %s -- "$file" 2>/dev/null || echo 0)
     (( bytes > 0 && bytes <= 5242880 )) || continue
     output=$(timeout 12 rspamc -j -h 127.0.0.1:11333 symbols < "$file" 2>/dev/null) || { ((failed+=1)); ((processed+=1)); ((processed>=limit)) && break; continue; }
-    score=$(printf '%s\n' "$output" | python3 -c 'import json,sys; data=json.load(sys.stdin); score=data.get("score"); print(score if isinstance(score,(int,float)) else "")' 2>/dev/null || true)
+    score=$(printf '%s\n' "$output" | python3 -c 'import json,sys; raw=sys.stdin.read(); pos=raw.find("{"); data=json.loads(raw[pos:]) if pos>=0 else {}; score=data.get("score"); print(score if isinstance(score,(int,float)) else "")' 2>/dev/null || true)
     if [[ -n "$score" ]]; then
       if awk -v s="$score" 'BEGIN{exit !(s>=15)}'; then ((over15+=1))
       elif awk -v s="$score" 'BEGIN{exit !(s>=8)}'; then ((over8+=1))
