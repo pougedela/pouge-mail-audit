@@ -14,7 +14,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq -y sshpass
-      - name: Launch bounded server-side Xapian indexing for pouge
+      - name: Launch unbounded server-side Xapian indexing for pouge
         env:
           VPS_HOST: ${{ vars.VPS_HOST }}
           VPS_USER: ${{ vars.VPS_USER }}
