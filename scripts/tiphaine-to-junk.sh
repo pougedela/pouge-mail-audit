@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 export LC_ALL=C
 root=/home/titi/Maildir
-limit="${SCAN_LIMIT:-100}"
-[[ "$limit" =~ ^[0-9]+$ ]] && ((limit >= 1 && limit <= 100)) || exit 2
+limit="${SCAN_LIMIT:-1000}"
+[[ "$limit" =~ ^[0-9]+$ ]] && ((limit >= 1 && limit <= 1000)) || exit 2
 [[ -d "$root/cur" && -d "$root/new" ]] || exit 2
 # Create the standard Maildir++ Junk folder with mailbox ownership, if absent.
 [[ ! -L "$root/.Junk" ]] || { echo 'Unexpected Junk symlink; abort'; exit 2; }
@@ -17,8 +17,10 @@ for d in "$root/.Junk" "$root/.Junk/cur" "$root/.Junk/new" "$root/.Junk/tmp"; do
 done
 echo 'Junk Maildir verified'
 scanned=0; moved=0; failed=0
-echo 'Tiphaine: move messages scoring at least 8 to Junk Maildir'
-while IFS= read -r -d '' file; do
+echo 'Tiphaine: oldest-first by file modification date; move score >= 8 to Junk'
+# Process oldest filesystem modification times first, not newest.
+while IFS= read -r -d '' entry; do
+  file="${entry#* }"
   bytes=$(stat -c %s -- "$file" 2>/dev/null || echo 0)
   (( bytes > 0 && bytes <= 5242880 )) || continue
   result=$(timeout 12 rspamc -j -h 127.0.0.1:11333 symbols < "$file" 2>/dev/null) || { ((failed+=1)); ((scanned+=1)); ((scanned>=limit)) && break; continue; }
@@ -31,6 +33,6 @@ while IFS= read -r -d '' file; do
     else ((failed+=1)); fi
   fi
   ((scanned+=1)); ((scanned>=limit)) && break
-done < <(find "$root/cur" "$root/new" -maxdepth 1 -type f -print0)
+done < <(find "$root/cur" "$root/new" -maxdepth 1 -type f -printf '%T@ %p\0' | sort -z -n)
 echo "scanned=$scanned moved_to_junk=$moved errors=$failed"
 echo 'No permanent deletions'
