@@ -3,18 +3,18 @@ on:
   workflow_dispatch:
     inputs:
       scan_limit:
-        description: 'Max messages to review in Tiphaine inbox (up to 100)'
+        description: 'Max messages to review in Tiphaine inbox (up to 1000, oldest first)'
         type: choice
         required: true
-        default: '10'
-        options: ['10', '25', '100']
+        default: '1000'
+        options: ['100', '500', '1000']
 permissions:
   contents: read
 jobs:
   scan:
     environment: vps_mail
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Install SSH helper
