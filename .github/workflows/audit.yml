@@ -6,6 +6,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    environment: vps_mail
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
