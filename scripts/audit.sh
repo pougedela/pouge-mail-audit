@@ -79,4 +79,38 @@ ss -H -ltn 2>/dev/null | awk '$4 ~ /:(11332|11333|11334)$/ {print "Listening on 
 echo 'Rspamd recent non-sensitive service statuses:'
 journalctl -u rspamd --no-pager -n 25 -o cat 2>/dev/null | grep -Ei 'error|warning|fail|cannot|bind|start|stop|worker|listen|crash' | tail -n 20 || true
 
+
+printf '\n## Delivery and Sieve readiness (read-only)\n'
+if command -v postconf >/dev/null 2>&1; then
+ for k in mailbox_transport virtual_transport mailbox_command home_mailbox; do
+  v=$(postconf -h "$k" 2>/dev/null || true)
+  printf '%s=%s\n' "$k" "$v"
+ done
+ echo 'Postfix delivery service entries:'
+ postconf -M 2>/dev/null | grep -E '^(smtp|submission|smtps|dovecot|lmtp|virtual|local)/' | cut -c1-190 | head -n 15 || true
+ for k in mua_sender_restrictions mua_client_restrictions mua_helo_restrictions; do
+   postconf -h "$k" >/dev/null 2>&1 && echo "$k: defined" || echo "$k: NOT DEFINED"
+ done
+fi
+if command -v doveconf >/dev/null 2>&1; then
+ echo 'Dovecot non-secret delivery options:'
+ for k in mail_location protocols mail_plugins; do
+  doveconf -h "$k" 2>/dev/null | sed "s/^/$k=/" || true
+ done
+ echo 'Sieve and LMTP package presence:'
+ dpkg-query -W -f='${binary:Package}: ${Status}\n' dovecot-sieve dovecot-lmtpd dovecot-managesieved 2>/dev/null || true
+ echo 'Pigeonhole tools:'
+ for binary in sievec doveadm; do command -v "$binary" >/dev/null 2>&1 && echo "$binary: present" || true; done
+ echo 'Sieve delivery plugin presence (configuration name only):'
+ doveconf -n 2>/dev/null | grep -E '^ *(protocol (lda|lmtp)|mail_plugins|sieve(_before|_after|_dir|_global_path|_default)?) *[={]' | head -n 35 || true
+fi
+printf '\n## Recent mail spam metadata (no subjects or bodies)\n'
+if [ -d /home/titi/Maildir ]; then
+ for folder in /home/titi/Maildir/{new,cur}; do
+   [ -d "$folder" ] || continue
+   find "$folder" -maxdepth 1 -type f -mmin -120 -print0 2>/dev/null |
+     xargs -0 -r grep -ilm 1 '^X-Spam-Status:' 2>/dev/null |
+     wc -l | xargs printf 'Recent emails with X-Spam-Status in %s: %s\n' "$folder" || true
+ done
+fi
 printf '\nEnd audit. No configuration changes performed.\n'
