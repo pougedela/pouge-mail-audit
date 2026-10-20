@@ -10,15 +10,14 @@ target=/etc/dovecot/conf.d/91-pouge-fts-xapian.conf
 if doveconf -n | grep -Eiq '^[[:space:]]*(fts|fts_xapian|fts_autoindex)[[:space:]]*='; then
  echo 'Existing FTS configuration detected; abort'; exit 2
 fi
-if ! grep -Eq '^[[:space:]]*!include(_try)?[[:space:]]+conf.d/\*\.conf' /etc/dovecot/dovecot.conf; then
- echo 'Dovecot conf.d include not verified; abort'; exit 2
-fi
 backup=/root/pouge-dovecot-fts-$(date -u +%Y%m%dT%H%M%SZ)
 install -d -m 700 "$backup"
 cp -a /etc/dovecot "$backup/config"
+cp -a /etc/dovecot/dovecot.conf "$backup/dovecot.conf"
 echo "Dovecot configuration backup created in $backup"
 rollback() {
  rm -f -- "$target"
+ cp -a -- "$backup/dovecot.conf" /etc/dovecot/dovecot.conf
  if doveconf -n >/dev/null 2>&1; then systemctl reload dovecot || true; fi
  echo 'Failed activation; managed FTS configuration removed'
 }
@@ -35,7 +34,10 @@ service indexer-worker {
   vsz_limit = 2G
 }
 CFG
+# The main dovecot.conf has no discovered conf.d inclusion. Explicitly add only our file.
+printf '\n!include /etc/dovecot/conf.d/91-pouge-fts-xapian.conf\n' >> /etc/dovecot/dovecot.conf
 doveconf -n >/dev/null
+doveconf -h mail_plugins | grep -q fts_xapian
 systemctl reload dovecot
 systemctl is-active --quiet dovecot
 echo 'FTS configuration activated; no full-mailbox indexing started'
