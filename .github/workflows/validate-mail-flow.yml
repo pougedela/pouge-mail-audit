@@ -1,0 +1,28 @@
+name: Validate live mail flow (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    environment: vps_mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH helper
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y sshpass
+      - name: Validate mailflow without changing mail
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          set -eu
+          : "${VPS_HOST:?missing host}"
+          : "${VPS_USER:?missing user}"
+          : "${SSHPASS:?missing password}"
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -se' < scripts/validate-mail-flow.sh
