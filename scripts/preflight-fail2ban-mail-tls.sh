@@ -22,7 +22,7 @@ doveconf -n 2>/dev/null | grep -E '^([[:space:]]*)(ssl|ssl_min_protocol|disable_
 echo '[PHP/Apache webmail check]'
 php -r '$f="/var/www/html/program/include/iniset.php"; if(is_readable($f) && preg_match("/RCMAIL_VERSION.*?([0-9]+\\.[0-9]+\\.[0-9]+)/",file_get_contents($f),$m)) echo "roundcube_version=".$m[1]."\\n";' 2>/dev/null || true
 echo '[Existing security jail files (paths only)]'
-find /etc/fail2ban -maxdepth 2 -type f \( -name '*.local' -o -name 'jail.conf' \) -print 2>/dev/null | head -n 20
+if [ -d /etc/fail2ban ]; then find /etc/fail2ban -maxdepth 2 -type f \( -name '*.local' -o -name 'jail.conf' \) -print 2>/dev/null | head -n 20 || true; else echo 'fail2ban_config_directory=missing'; fi
 echo '[Certbot hook]'
 test -x /etc/letsencrypt/renewal-hooks/deploy/90-pouge-mail-reload.sh && echo 'mail_hook_executable=yes' || echo 'mail_hook_executable=no'
 echo 'Preflight complete: no service changes, no mails accessed'
