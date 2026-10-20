@@ -42,7 +42,15 @@ if ! systemctl is-active --quiet rspamd; then
   journalctl -u rspamd --no-pager -n 35 || true
   exit 1
 fi
-if ! timeout 5 bash -c 'echo > /dev/tcp/127.0.0.1/11332' 2>/dev/null; then
+ready=0
+for attempt in $(seq 1 20); do
+  if timeout 2 bash -c 'echo > /dev/tcp/127.0.0.1/11332' 2>/dev/null; then
+    ready=1
+    break
+  fi
+  sleep 2
+done
+if [ "$ready" -ne 1 ]; then
   echo "Rspamd proxy milter unavailable; Postfix unchanged."
   ss -ltn | grep -E '1133[234]|State' || true
   journalctl -u rspamd --no-pager -n 35 || true
