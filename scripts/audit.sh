@@ -40,4 +40,31 @@ printf '\n## Rspamd status\n'
 if command -v rspamadm >/dev/null; then rspamadm --version 2>/dev/null | head -n 1; fi
 printf '\n## Postfix queue (count only)\n'
 if command -v postqueue >/dev/null; then postqueue -j 2>/dev/null | wc -l || true; fi
+
+printf '\n## titi mailbox (metadata only; no email bodies, subjects or sender addresses)\n'
+found=0
+for root in /home/titi/Maildir /home/titi/mail /var/mail/titi /var/spool/mail/titi /var/vmail/pouge.net/titi /var/vmail/pouge.net/titi/Maildir /var/mail/vhosts/pouge.net/titi /var/mail/vhosts/pouge.net/titi/Maildir; do
+  [ -e "$root" ] || continue
+  found=1
+  if [ -f "$root" ]; then
+    printf 'mbox candidate: %s; size_bytes=%s\n' "$root" "$(stat -c %s "$root" 2>/dev/null || echo unreadable)"
+  elif [ -d "$root" ]; then
+    printf 'mailbox candidate: %s\n' "$root"
+    for folder in "$root" "$root"/.Junk "$root"/.Spam "$root"/Junk "$root"/Spam "$root"/Maildir "$root"/Maildir/.Junk "$root"/Maildir/.Spam; do
+      [ -d "$folder/cur" ] || [ -d "$folder/new" ] || continue
+      for state in cur new; do
+        if [ -d "$folder/$state" ]; then
+          count=$(find "$folder/$state" -maxdepth 1 -type f 2>/dev/null | wc -l)
+          printf 'folder=%s state=%s count=%s\n' "${folder#"$root"}" "$state" "$count"
+        fi
+      done
+    done
+  fi
+done
+[ "$found" -eq 1 ] || echo 'No titi mailbox found in standard locations (virtual mailbox path may differ).'
+if [ -n "$LOG" ]; then
+  printf 'log lines mentioning recipient titi@pouge.net (current log only): '
+  grep -Eic 'to=<?titi@pouge\\.net>?' "$LOG" 2>/dev/null || true
+fi
+
 printf '\nEnd audit. No configuration changes performed.\n'
