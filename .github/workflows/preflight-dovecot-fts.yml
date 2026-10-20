@@ -1,0 +1,28 @@
+name: Preflight Dovecot FTS Xapian
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    environment: vps_mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH helper
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y sshpass
+      - name: Verify Xapian prerequisites and Dovecot errors (read-only)
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          set -eu
+          : "${VPS_HOST:?missing VPS_HOST}"
+          : "${VPS_USER:?missing VPS_USER}"
+          : "${SSHPASS:?missing VPS_PASSWORD}"
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -se' < scripts/preflight-dovecot-fts.sh
