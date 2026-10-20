@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       scan_limit:
-        description: 'Max messages to review in Tiphaine inbox (up to 1000, oldest first)'
+        description: 'Max messages to review in Tiphaine inbox (up to 1000, newest first)'
         type: choice
         required: true
         default: '1000'
