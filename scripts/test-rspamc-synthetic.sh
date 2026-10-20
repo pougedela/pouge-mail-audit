@@ -14,6 +14,8 @@ try:
  print("JSON parse: OK; score numeric:",isinstance(d.get('score'),(float,int)))
 except Exception as e:
  print("JSON parse: failed",type(e).__name__)
+ with open("/tmp/pouge-rspam-test-output",errors="replace") as inp:
+  print("Synthetic-only response preview:",repr(inp.read(450)))
 PY
   else
     echo 'Scanner connection or invocation failed'
