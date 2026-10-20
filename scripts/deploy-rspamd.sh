@@ -26,10 +26,27 @@ CFG
 cat > /etc/rspamd/local.d/milter_headers.conf <<'CFG'
 use = ["x-spamd-bar", "x-spam-level", "x-spam-status"];
 CFG
+# Explicit local-only proxy listener for Ubuntu packages.
+cat > /etc/rspamd/local.d/worker-proxy.inc <<'CFG'
+bind_socket = "127.0.0.1:11332";
+milter = yes;
+upstream "local" {
+  self_scan = yes;
+}
+CFG
 rspamadm configtest
-systemctl enable --now rspamd
+systemctl enable rspamd
+systemctl restart rspamd
+if ! systemctl is-active --quiet rspamd; then
+  echo "Rspamd inactive after restart; Postfix unchanged"
+  journalctl -u rspamd --no-pager -n 35 || true
+  exit 1
+fi
 if ! timeout 5 bash -c 'echo > /dev/tcp/127.0.0.1/11332' 2>/dev/null; then
-  echo "Rspamd proxy milter not available. Postfix unchanged."; exit 1
+  echo "Rspamd proxy milter unavailable; Postfix unchanged."
+  ss -ltn | grep -E '1133[234]|State' || true
+  journalctl -u rspamd --no-pager -n 35 || true
+  exit 1
 fi
 postconf -e 'smtpd_milters = inet:127.0.0.1:11332'
 postconf -e 'milter_default_action = accept'
