@@ -5,9 +5,19 @@ root=/home/titi/Maildir
 limit="${SCAN_LIMIT:-100}"
 [[ "$limit" =~ ^[0-9]+$ ]] && ((limit >= 1 && limit <= 100)) || exit 2
 [[ -d "$root/cur" && -d "$root/new" ]] || exit 2
-[[ -d "$root/.Junk/cur" && -d "$root/.Junk/new" && -d "$root/.Junk/tmp" ]] || { echo 'Junk Maildir not configured; stop without changes'; exit 2; }
+# Create the standard Maildir++ Junk folder with mailbox ownership, if absent.
+[[ ! -L "$root/.Junk" ]] || { echo 'Unexpected Junk symlink; abort'; exit 2; }
+owner=$(stat -c '%u' "$root")
+group=$(stat -c '%g' "$root")
+for d in "$root/.Junk" "$root/.Junk/cur" "$root/.Junk/new" "$root/.Junk/tmp"; do
+  if [[ ! -d "$d" ]]; then
+    [[ ! -e "$d" ]] || { echo 'Unexpected Junk path; abort'; exit 2; }
+    install -d -m 700 -o "$owner" -g "$group" -- "$d"
+  fi
+done
+echo 'Junk Maildir verified'
 scanned=0; moved=0; failed=0
-echo 'Tiphaine: move messages scoring at least 8 to existing Junk Maildir'
+echo 'Tiphaine: move messages scoring at least 8 to Junk Maildir'
 while IFS= read -r -d '' file; do
   bytes=$(stat -c %s -- "$file" 2>/dev/null || echo 0)
   (( bytes > 0 && bytes <= 5242880 )) || continue
@@ -17,7 +27,8 @@ while IFS= read -r -d '' file; do
   elif awk -v s="$score" 'BEGIN{exit !(s>=8)}'; then
     dst="$root/.Junk/cur/$(basename "$file")"
     if [[ -e "$dst" ]]; then ((failed+=1))
-    else mv -n -- "$file" "$dst"; ((moved+=1)); fi
+    elif mv -n -- "$file" "$dst" && [[ ! -e "$file" ]]; then ((moved+=1))
+    else ((failed+=1)); fi
   fi
   ((scanned+=1)); ((scanned>=limit)) && break
 done < <(find "$root/cur" "$root/new" -maxdepth 1 -type f -print0)
