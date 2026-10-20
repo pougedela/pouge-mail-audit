@@ -1,0 +1,25 @@
+name: Audit Tiphaine mailbox (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    environment: vps_mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Identify mailbox without modifying messages
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          set -eu
+          : "${VPS_HOST:?missing host}"
+          : "${VPS_USER:?missing user}"
+          : "${SSHPASS:?missing password}"
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -se' < scripts/audit-tiphaine.sh
