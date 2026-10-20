@@ -1,8 +1,6 @@
 name: Test Rspamd with synthetic email
 on:
   workflow_dispatch:
-    inputs:
-      
 permissions:
   contents: read
 jobs:
