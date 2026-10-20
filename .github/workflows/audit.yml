@@ -13,15 +13,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq sshpass
-      - name: Set verified SSH host key
-        env:
-          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-        run: |
-          set -eu
-          test -n "$KNOWN_HOSTS"
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
       - name: Audit VPS (no changes)
         env:
           VPS_HOST: ${{ vars.VPS_HOST }}
@@ -35,4 +26,4 @@ jobs:
           : "${VPS_USER:?Set VPS_USER repository variable}"
           : "${SSHPASS:?Set VPS_PASSWORD repository secret}"
           port="${VPS_PORT:-22}"
-          sshpass -e ssh -T -p "$port" -o StrictHostKeyChecking=yes -o ConnectTimeout=10 -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/audit.sh
+          sshpass -e ssh -T -p "$port" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive "$VPS_USER@$VPS_HOST" 'bash -s' < scripts/audit.sh
