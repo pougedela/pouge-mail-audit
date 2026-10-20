@@ -1,0 +1,36 @@
+name: Scan historical mail (read-only sample)
+on:
+  workflow_dispatch:
+    inputs:
+      scan_limit:
+        description: 'Max existing inbox messages per mailbox (1-500)'
+        type: choice
+        required: true
+        default: '100'
+        options: ['25', '100', '250', '500']
+permissions:
+  contents: read
+jobs:
+  scan:
+    environment: vps_mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH helper
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y sshpass
+      - name: Score existing inbox messages without changing them
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          SCAN_LIMIT: ${{ inputs.scan_limit }}
+        run: |
+          set -eu
+          : "${VPS_HOST:?missing VPS_HOST}"
+          : "${VPS_USER:?missing VPS_USER}"
+          : "${SSHPASS:?missing VPS_PASSWORD}"
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" "SCAN_LIMIT='$SCAN_LIMIT' bash -se" < scripts/scan-historical-mail.sh
