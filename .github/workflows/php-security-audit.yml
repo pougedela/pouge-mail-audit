@@ -17,19 +17,16 @@ jobs:
           VPS_USER: "${{ vars.VPS_USER }}"
           VPS_PORT: "${{ vars.VPS_PORT }}"
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
-          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           set +x
           : "${VPS_HOST:?Missing VPS_HOST}"
           : "${VPS_USER:?Missing VPS_USER}"
           : "${SSHPASS:?Missing VPS_PASSWORD}"
-          : "${VPS_KNOWN_HOSTS:?Configure verified VPS_KNOWN_HOSTS secret first}"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
           set +x
           echo '=== OS ==='
           grep -E '^(PRETTY_NAME|VERSION_ID)=' /etc/os-release || true
