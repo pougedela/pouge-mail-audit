@@ -1,6 +1,8 @@
 name: PHP emergency security audit (read-only)
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'
 permissions:
   contents: read
 jobs:
