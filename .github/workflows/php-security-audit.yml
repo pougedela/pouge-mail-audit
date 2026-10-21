@@ -1,0 +1,57 @@
+name: PHP emergency security audit (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: vps_mail
+    timeout-minutes: 10
+    steps:
+      - name: Install SSH client support
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Audit PHP versions without changing VPS
+        env:
+          VPS_HOST: "${{ vars.VPS_HOST }}"
+          VPS_USER: "${{ vars.VPS_USER }}"
+          VPS_PORT: "${{ vars.VPS_PORT }}"
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          set +x
+          : "${VPS_HOST:?Missing VPS_HOST}"
+          : "${VPS_USER:?Missing VPS_USER}"
+          : "${SSHPASS:?Missing VPS_PASSWORD}"
+          : "${VPS_KNOWN_HOSTS:?Configure verified VPS_KNOWN_HOSTS secret first}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sshpass -e ssh -T -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set +x
+          echo '=== OS ==='
+          grep -E '^(PRETTY_NAME|VERSION_ID)=' /etc/os-release || true
+          echo '=== PHP host CLI (not necessarily web PHP) ==='
+          php -v 2>/dev/null | head -n 2 || true
+          echo '=== PHP packages ==='
+          if command -v dpkg-query >/dev/null; then dpkg-query -W -f='${binary:Package} ${Version}\n' 'php*-fpm' 'libapache2-mod-php*' 'php*-cli' 2>/dev/null || true; fi
+          echo '=== Active PHP-FPM units ==='
+          systemctl list-units --all --no-pager 'php*-fpm.service' 2>/dev/null || true
+          echo '=== Docker PHP workloads (running) ==='
+          if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+            docker ps --format '{{.Names}}|{{.Image}}' | while IFS='|' read -r name img; do
+              case "$img" in *wordpress*|*nextcloud*|*php*|*paheko* )
+                printf '%s %s : ' "$name" "$img"
+                docker exec "$name" php -r 'echo PHP_VERSION, "\n";' 2>/dev/null || echo 'PHP inaccessible'
+                ;; esac
+            done
+          else
+            echo 'Docker absent or not accessible to SSH account'
+          fi
+          echo '=== Package upgrade candidates ==='
+          if command -v apt >/dev/null; then apt list --upgradable 2>/dev/null | grep -Ei 'php|apache|nginx' || true; fi
+          echo '=== Patched upstream thresholds: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 ==='
+          echo '=== Note: distro backports require vendor security verification ==='
+          REMOTE
