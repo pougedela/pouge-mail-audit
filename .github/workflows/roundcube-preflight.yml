@@ -22,7 +22,7 @@ jobs:
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          for key in VPS_HOST VPS_USER VPS_PASSWORD VPS_KNOWN_HOSTS; do
+          for key in VPS_HOST VPS_USER VPS_PASSWORD; do
             if [[ -z "${!key:-}" ]]; then
               echo "::error::Missing ${key}. Configure the existing VPS audit variables and secrets."
               exit 1
@@ -33,10 +33,16 @@ jobs:
           sudo apt-get install -y -qq sshpass > /dev/null
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          if [[ -n "${VPS_KNOWN_HOSTS:-}" ]]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+            host_key_policy=yes
+          else
+            echo "::warning::VPS_KNOWN_HOSTS not set; first SSH host key will be trusted on first use (TOFU)."
+            host_key_policy=accept-new
+          fi
           chmod 600 "$HOME/.ssh/known_hosts"
           export SSHPASS="$VPS_PASSWORD"
-          sshpass -e ssh -p "$port" -o StrictHostKeyChecking=yes -o BatchMode=no -o ConnectTimeout=15 \
+          sshpass -e ssh -T -p "$port" -o StrictHostKeyChecking="$host_key_policy" -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o BatchMode=no -o ConnectTimeout=15 \
             "${VPS_USER}@${VPS_HOST}" 'bash -s' <<'REMOTE'
           set -u
           echo "=== System ==="
