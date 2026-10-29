@@ -1,0 +1,71 @@
+name: Roundcube 1.7.5 preflight (read only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check SSH configuration
+        shell: bash
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for key in VPS_HOST VPS_USER VPS_PASSWORD VPS_KNOWN_HOSTS; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing ${key}. Configure the existing VPS audit variables and secrets."
+              exit 1
+            fi
+          done
+          port="${VPS_PORT:-22}"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass > /dev/null
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          export SSHPASS="$VPS_PASSWORD"
+          sshpass -e ssh -p "$port" -o StrictHostKeyChecking=yes -o BatchMode=no -o ConnectTimeout=15 \
+            "${VPS_USER}@${VPS_HOST}" 'bash -s' <<'REMOTE'
+          set -u
+          echo "=== System ==="
+          (lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME) || :
+          echo "=== PHP ==="
+          php -v 2>/dev/null | head -n 2 || echo "php CLI unavailable"
+          echo "=== Web servers ==="
+          for s in apache2 nginx php*-fpm; do
+            systemctl list-unit-files "$s" 2>/dev/null | grep -E 'apache2|nginx|php.*-fpm' | head -n 12 || :
+          done
+          echo "=== Roundcube packages ==="
+          dpkg-query -W -f='${Package} ${Version}\n' '*roundcube*' 2>/dev/null || :
+          echo "=== Roundcube locations and version (no config contents) ==="
+          for p in /var/www/roundcube /var/www/roundcubemail /usr/share/roundcube /var/lib/roundcube /var/www/html/roundcube /opt/roundcube; do
+            if test -e "$p"; then
+              ls -ld "$p"
+              if test -r "$p/program/lib/Roundcube/rcube.php"; then
+                grep -m1 -E 'const VERSION|VERSION =' "$p/program/lib/Roundcube/rcube.php" || :
+              fi
+              test -d "$p/public_html" && echo "public_html exists: $p/public_html"
+            fi
+          done
+          echo "=== Site config metadata (names only) ==="
+          for p in /etc/apache2/sites-enabled /etc/nginx/sites-enabled; do
+            if test -d "$p"; then
+              find "$p" -maxdepth 1 -type l -printf '%f\n' 2>/dev/null | sort
+            fi
+          done
+          echo "=== Disk usage ==="
+          df -h / /var 2>/dev/null || :
+          echo "=== Privileges ==="
+          if sudo -n true 2>/dev/null; then echo 'passwordless sudo available'; else echo 'no passwordless sudo'; fi
+          REMOTE
